@@ -1,32 +1,31 @@
 # Asset Goblin
 
-A goblin-themed static GitHub Pages tool that extracts page assets and brand clues from a URL or pasted HTML.
+A simple GitHub Pages app for extracting images and videos from a public webpage.
 
-## What it grabs
+## What it does
 
-- Images
-- Videos and embeds
-- Fonts and stylesheets
-- Colors
-- Links
-- Page text
-- Basic brand-kit clues
+- Paste one URL
+- Extract images and videos from the page HTML/CSS
+- Show everything in a simple grid
+- Select some or all
+- Download individual files or a ZIP
 
-## Loot Locker
+## Important browser limitation
 
-The Loot Locker lets you:
+This is a static browser-only app. Some sites block browser fetches with CORS, and JavaScript-rendered media may not appear in the raw HTML. Asset Goblin tries direct fetch first, then a public CORS fallback. A production-grade extractor would need a backend/worker that fetches pages server-side.
 
-- Search discovered files
-- Filter by images, videos, or fonts/stylesheets
-- Sort by size, name, type, or URL
-- Attempt to check remote file sizes
-- Download one asset
-- Download visible or selected assets as a ZIP
-- Download all available assets as a ZIP
+## Deploy with GitHub Actions
 
-ZIP downloads use JSZip from jsDelivr. Actual file downloads are still controlled by the asset host's browser/CORS rules. If a host blocks browser fetching, Asset Goblin will skip that file in the ZIP and write it into `asset-goblin-download-log.txt`.
+This repo includes `.github/workflows/deploy.yml` for GitHub Pages.
 
-## GitHub Pages
+In GitHub:
 
-This is static HTML/CSS/JS. It can deploy through GitHub Actions or Pages branch deploy.
+Settings → Pages → Build and deployment → Source → GitHub Actions
 
+Then push updates:
+
+```bash
+git add .
+git commit -m "Update Asset Goblin"
+git push origin master
+```

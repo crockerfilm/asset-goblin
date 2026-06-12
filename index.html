@@ -3,196 +3,74 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Asset Goblin — Content Extractor + Brand Hoarder</title>
-  <meta name="description" content="Extract images, videos, fonts, colors, links, text, and basic brand assets from a webpage." />
+  <title>Asset Goblin — Image & Video Extractor</title>
+  <meta name="description" content="A simple browser-based image and video extractor for GitHub Pages." />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div>
-      <p class="eyebrow">Static GitHub Pages Tool · Goblin Mode</p>
-      <div class="hero-title"><div class="goblin-face" aria-hidden="true"><span></span></div><h1>Asset Goblin</h1></div>
-      <p class="subtitle">Feed it a URL or page HTML and let the little goblin loot images, videos, fonts, colors, links, copy, and brand-kit clues.</p>
-    </div>
-    <div class="status-pill" id="statusPill">Cave ready</div>
-  </header>
-
-  <main class="layout">
-    <section class="panel input-panel">
-      <div class="tabs" role="tablist">
-        <button class="tab active" data-mode="url">URL</button>
-        <button class="tab" data-mode="html">Paste HTML</button>
-      </div>
-
-      <div id="urlMode" class="mode-block">
-        <label for="urlInput">Treasure Map URL</label>
-        <div class="row">
-          <input id="urlInput" type="url" placeholder="https://example.com" autocomplete="off" />
-          <button id="scanUrlBtn">Raid URL</button>
-        </div>
-        <p class="hint">Some castles block browser goblins with CORS. If the raid fails, open the page source, copy it, and use Paste HTML.</p>
-      </div>
-
-      <div id="htmlMode" class="mode-block hidden">
-        <label for="htmlInput">Raw cave scroll / HTML source</label>
-        <textarea id="htmlInput" placeholder="Paste the full page HTML scroll here..."></textarea>
-        <div class="row">
-          <input id="baseUrlInput" type="url" placeholder="Optional home cave URL for relative assets, e.g. https://example.com/page" />
-          <button id="scanHtmlBtn">Raid HTML</button>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button id="downloadJsonBtn" disabled>Download Hoard JSON</button>
-        <button id="downloadCsvBtn" disabled>Download Loot CSV</button>
-        <button id="copySummaryBtn" disabled>Copy Goblin Report</button>
-        <button id="clearBtn" class="secondary">Clear</button>
-      </div>
+  <main class="app">
+    <section class="hero">
+      <div class="mark" aria-hidden="true"> goblin </div>
+      <h1>Asset Goblin</h1>
+      <p>Paste a page URL. Grab the images and videos. Download some or all.</p>
     </section>
 
-    <section class="summary-grid" aria-live="polite">
-      <article class="metric"><span id="imageCount">0</span><small>Images</small></article>
-      <article class="metric"><span id="videoCount">0</span><small>Videos</small></article>
-      <article class="metric"><span id="fontCount">0</span><small>Fonts</small></article>
-      <article class="metric"><span id="colorCount">0</span><small>Colors</small></article>
-      <article class="metric"><span id="linkCount">0</span><small>Links</small></article>
-      <article class="metric"><span id="wordCount">0</span><small>Words</small></article>
+    <section class="panel input-panel" aria-labelledby="extract-heading">
+      <h2 id="extract-heading">Extract media</h2>
+      <form id="extractForm" class="url-form">
+        <input id="urlInput" type="url" placeholder="https://example.com/page" autocomplete="url" required />
+        <button id="extractBtn" type="submit">Extract</button>
+      </form>
+      <p id="status" class="status">Ready.</p>
     </section>
 
-    <section class="panel brand-panel">
-      <div class="section-heading">
-        <h2>Brand Hoard</h2>
-        <p>Auto-detected title, description, colors, fonts, logos, and other shiny brand bits.</p>
-      </div>
-      <div id="brandKit" class="brand-kit empty">Run a raid to fill the brand hoard.</div>
-    </section>
-
-
-
-    <section class="panel loot-panel">
-      <div class="section-heading">
+    <section id="resultsPanel" class="panel results-panel" hidden>
+      <div class="toolbar">
         <div>
-          <h2>Loot Locker</h2>
-          <p>Sort, filter, size-check, and download discovered files one-by-one or as a ZIP.</p>
+          <h2>Found media</h2>
+          <p id="countText" class="muted">0 files</p>
         </div>
-        <div class="locker-actions">
-          <button class="mini" id="checkSizesBtn" disabled>Weigh Loot</button>
-          <button class="mini" id="downloadVisibleZipBtn" disabled>ZIP Visible</button>
-          <button class="mini" id="downloadAllZipBtn" disabled>ZIP All</button>
+        <div class="actions">
+          <button id="selectAllBtn" type="button" class="secondary">Select all</button>
+          <button id="selectNoneBtn" type="button" class="secondary">Select none</button>
+          <button id="downloadSelectedBtn" type="button">Download selected</button>
+          <button id="downloadAllBtn" type="button">Download all</button>
         </div>
       </div>
 
-      <div class="filters">
-        <label>
-          Search loot
-          <input id="assetSearchInput" type="search" placeholder="logo, .mp4, font, png..." />
-        </label>
-        <label>
-          Type
-          <select id="assetTypeFilter">
-            <option value="all">All</option>
-            <option value="image">Images</option>
-            <option value="video">Videos</option>
-            <option value="font">Fonts / stylesheets</option>
-          </select>
-        </label>
-        <label>
-          Sort by
-          <select id="assetSortSelect">
-            <option value="size-desc">Size: biggest first</option>
-            <option value="size-asc">Size: smallest first</option>
-            <option value="name-asc">Name: A–Z</option>
-            <option value="type-asc">Type</option>
-            <option value="url-asc">URL</option>
-          </select>
-        </label>
-        <label>
-          Min KB
-          <input id="minSizeInput" type="number" min="0" step="1" placeholder="0" />
-        </label>
-        <label>
-          Max KB
-          <input id="maxSizeInput" type="number" min="0" step="1" placeholder="Any" />
-        </label>
+      <div class="mini-filters" aria-label="Media type filters">
+        <button class="chip active" type="button" data-filter="all">All</button>
+        <button class="chip" type="button" data-filter="image">Images</button>
+        <button class="chip" type="button" data-filter="video">Videos</button>
       </div>
 
-      <div id="lootSummary" class="loot-summary empty">No loot in the locker yet.</div>
-      <div class="table-wrap">
-        <table class="asset-table">
-          <thead>
-            <tr>
-              <th><input id="selectAllAssets" type="checkbox" disabled /></th>
-              <th>Type</th>
-              <th>Name</th>
-              <th>Size</th>
-              <th>URL</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="assetTableBody">
-            <tr><td colspan="6" class="empty-cell">No sortable loot yet.</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="hint">Downloading files or ZIPs works only when the asset host allows browser fetching. Blocked files will be skipped and listed in the goblin log.</p>
-    </section>
-
-    <section class="results">
-      <article class="panel">
-        <div class="section-heading">
-          <h2>Images</h2>
-          <button class="mini" data-download-list="images">Bag Image URLs</button>
-        </div>
-        <div id="imagesGrid" class="asset-grid empty">No image loot yet.</div>
-      </article>
-
-      <article class="panel">
-        <div class="section-heading">
-          <h2>Videos</h2>
-          <button class="mini" data-download-list="videos">Bag Video URLs</button>
-        </div>
-        <div id="videosGrid" class="asset-grid empty">No moving-picture loot yet.</div>
-      </article>
-
-      <article class="panel">
-        <div class="section-heading">
-          <h2>Fonts</h2>
-          <button class="mini" data-download-list="fonts">Bag Font URLs</button>
-        </div>
-        <div id="fontsList" class="list empty">No font runes yet.</div>
-      </article>
-
-      <article class="panel">
-        <div class="section-heading">
-          <h2>Colors</h2>
-          <button class="mini" data-download-list="colors">Bag Colors</button>
-        </div>
-        <div id="colorsGrid" class="color-grid empty">No color gems yet.</div>
-      </article>
-
-      <article class="panel wide">
-        <div class="section-heading">
-          <h2>Page Scroll</h2>
-          <button class="mini" id="downloadTextBtn" disabled>Download Scroll Text</button>
-        </div>
-        <div id="contentBox" class="content-box empty">No page scroll text yet.</div>
-      </article>
-
-      <article class="panel wide">
-        <div class="section-heading">
-          <h2>Links</h2>
-          <button class="mini" data-download-list="links">Bag Links</button>
-        </div>
-        <div id="linksList" class="list empty">No link tunnels yet.</div>
-      </article>
+      <div id="grid" class="grid" aria-live="polite"></div>
     </section>
   </main>
 
-  <footer>
-    <p>Runs entirely in your browser cave. No backend, no tracking, no uploads.</p>
-  </footer>
+  <template id="cardTemplate">
+    <article class="card">
+      <label class="select-wrap">
+        <input type="checkbox" class="asset-check" checked />
+        <span>Select</span>
+      </label>
+      <div class="preview"></div>
+      <div class="card-body">
+        <div class="card-topline">
+          <span class="pill"></span>
+          <span class="dims"></span>
+        </div>
+        <h3 class="filename"></h3>
+        <p class="source"></p>
+        <div class="card-actions">
+          <button type="button" class="download-one">Download</button>
+          <a class="open-link" target="_blank" rel="noreferrer">Open</a>
+        </div>
+      </div>
+    </article>
+  </template>
 
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+  <script src="app.js" defer></script>
 </body>
 </html>
