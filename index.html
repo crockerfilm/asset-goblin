@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Asset Goblin</title>
+  <title>Asset Goblin v0.1.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -257,6 +257,22 @@
       margin:14px 4px 0;
     }
 
+
+    .versionPill {
+      position:fixed;
+      right:14px;
+      bottom:14px;
+      z-index:20;
+      background:rgba(25,31,23,.94);
+      border:1px solid var(--line);
+      color:var(--muted);
+      border-radius:999px;
+      padding:7px 10px;
+      font-size:.78rem;
+      font-weight:800;
+      box-shadow:0 10px 30px rgba(0,0,0,.25);
+    }
+
     @media (max-width:880px) {
       header { display:block; }
       .badge { display:inline-block; margin-top:14px; }
@@ -273,7 +289,7 @@
         <h1>Asset Goblin</h1>
         <p class="sub">Paste a page URL. Asset Goblin sniffs out images and videos, then lets you download one, selected, visible, or all.</p>
       </div>
-      <div class="badge">goblin mode</div>
+      <div class="badge">goblin mode · v0.1.0</div>
     </header>
 
     <section class="panel">
@@ -782,5 +798,6 @@
 
     downloadVisibleBtn.addEventListener('click', downloadVisible);
   </script>
+  <div id="versionPill" class="versionPill">Asset Goblin v0.1.0</div>
 </body>
 </html>
