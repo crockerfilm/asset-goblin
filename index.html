@@ -67,6 +67,76 @@
       <div id="brandKit" class="brand-kit empty">Run a raid to fill the brand hoard.</div>
     </section>
 
+
+
+    <section class="panel loot-panel">
+      <div class="section-heading">
+        <div>
+          <h2>Loot Locker</h2>
+          <p>Sort, filter, size-check, and download discovered files one-by-one or as a ZIP.</p>
+        </div>
+        <div class="locker-actions">
+          <button class="mini" id="checkSizesBtn" disabled>Weigh Loot</button>
+          <button class="mini" id="downloadVisibleZipBtn" disabled>ZIP Visible</button>
+          <button class="mini" id="downloadAllZipBtn" disabled>ZIP All</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <label>
+          Search loot
+          <input id="assetSearchInput" type="search" placeholder="logo, .mp4, font, png..." />
+        </label>
+        <label>
+          Type
+          <select id="assetTypeFilter">
+            <option value="all">All</option>
+            <option value="image">Images</option>
+            <option value="video">Videos</option>
+            <option value="font">Fonts / stylesheets</option>
+          </select>
+        </label>
+        <label>
+          Sort by
+          <select id="assetSortSelect">
+            <option value="size-desc">Size: biggest first</option>
+            <option value="size-asc">Size: smallest first</option>
+            <option value="name-asc">Name: A–Z</option>
+            <option value="type-asc">Type</option>
+            <option value="url-asc">URL</option>
+          </select>
+        </label>
+        <label>
+          Min KB
+          <input id="minSizeInput" type="number" min="0" step="1" placeholder="0" />
+        </label>
+        <label>
+          Max KB
+          <input id="maxSizeInput" type="number" min="0" step="1" placeholder="Any" />
+        </label>
+      </div>
+
+      <div id="lootSummary" class="loot-summary empty">No loot in the locker yet.</div>
+      <div class="table-wrap">
+        <table class="asset-table">
+          <thead>
+            <tr>
+              <th><input id="selectAllAssets" type="checkbox" disabled /></th>
+              <th>Type</th>
+              <th>Name</th>
+              <th>Size</th>
+              <th>URL</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="assetTableBody">
+            <tr><td colspan="6" class="empty-cell">No sortable loot yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Downloading files or ZIPs works only when the asset host allows browser fetching. Blocked files will be skipped and listed in the goblin log.</p>
+    </section>
+
     <section class="results">
       <article class="panel">
         <div class="section-heading">
@@ -122,6 +192,7 @@
     <p>Runs entirely in your browser cave. No backend, no tracking, no uploads.</p>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

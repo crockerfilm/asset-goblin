@@ -9,7 +9,8 @@ const state = {
   colors: [],
   links: [],
   text: '',
-  metadata: {}
+  metadata: {},
+  selectedAssets: new Set()
 };
 
 const $ = (id) => document.getElementById(id);
@@ -191,10 +192,11 @@ function render() {
   renderFonts();
   renderColors();
   renderLinks();
+  renderLootLocker();
   $('contentBox').textContent = state.text || 'No page scroll text found.';
   $('contentBox').classList.toggle('empty', !state.text);
 
-  ['downloadJsonBtn', 'downloadCsvBtn', 'copySummaryBtn', 'downloadTextBtn'].forEach(id => $(id).disabled = false);
+  ['downloadJsonBtn', 'downloadCsvBtn', 'copySummaryBtn', 'downloadTextBtn', 'checkSizesBtn', 'downloadVisibleZipBtn', 'downloadAllZipBtn'].forEach(id => { if ($(id)) $(id).disabled = false; });
 }
 
 function renderBrandKit() {
@@ -337,6 +339,242 @@ function escapeHtml(value) {
 }
 function escapeAttr(value) { return escapeHtml(value).replace(/'/g, '&#39;'); }
 
+
+function downloadableAssets() {
+  const assets = [];
+  state.images.forEach((x, i) => assets.push(assetRecord('image', x, i)));
+  state.videos.forEach((x, i) => assets.push(assetRecord('video', x, i)));
+  state.fonts.filter(f => f.isUrl).forEach((f, i) => assets.push(assetRecord('font', { url: f.item, filename: fileNameFromUrl(f.item), type: guessType(f.item) }, i)));
+  return assets;
+}
+
+function assetRecord(category, x, index) {
+  const id = `${category}-${index}-${x.url}`;
+  return {
+    id,
+    category,
+    url: x.url,
+    filename: x.filename || fileNameFromUrl(x.url),
+    type: x.type || guessType(x.url),
+    sizeBytes: x.sizeBytes ?? null,
+    sizeStatus: x.sizeStatus || 'unknown'
+  };
+}
+
+function writeAssetBack(asset, patch) {
+  const collections = { image: state.images, video: state.videos };
+  if (asset.category === 'font') {
+    const match = state.fonts.find(f => f.item === asset.url);
+    if (match) Object.assign(match, patch);
+    return;
+  }
+  const match = collections[asset.category]?.find(x => x.url === asset.url);
+  if (match) Object.assign(match, patch);
+}
+
+function filteredAssets() {
+  const q = ($('assetSearchInput')?.value || '').trim().toLowerCase();
+  const type = $('assetTypeFilter')?.value || 'all';
+  const minKb = Number($('minSizeInput')?.value || 0);
+  const maxRaw = $('maxSizeInput')?.value;
+  const maxKb = maxRaw === '' ? Infinity : Number(maxRaw);
+  const sort = $('assetSortSelect')?.value || 'size-desc';
+
+  let items = downloadableAssets().filter(asset => {
+    if (type !== 'all' && asset.category !== type) return false;
+    if (q && !(`${asset.filename} ${asset.url} ${asset.type} ${asset.category}`.toLowerCase().includes(q))) return false;
+    if (asset.sizeBytes != null) {
+      const kb = asset.sizeBytes / 1024;
+      if (kb < minKb || kb > maxKb) return false;
+    } else if (minKb > 0 || Number.isFinite(maxKb)) {
+      return false;
+    }
+    return true;
+  });
+
+  items.sort((a, b) => {
+    const sizeA = a.sizeBytes ?? -1;
+    const sizeB = b.sizeBytes ?? -1;
+    if (sort === 'size-desc') return sizeB - sizeA;
+    if (sort === 'size-asc') return sizeA - sizeB;
+    if (sort === 'type-asc') return a.category.localeCompare(b.category) || a.filename.localeCompare(b.filename);
+    if (sort === 'url-asc') return a.url.localeCompare(b.url);
+    return a.filename.localeCompare(b.filename);
+  });
+  return items;
+}
+
+function renderLootLocker() {
+  const body = $('assetTableBody');
+  if (!body) return;
+  const all = downloadableAssets();
+  const items = filteredAssets();
+  const knownSize = all.filter(a => a.sizeBytes != null).reduce((sum, a) => sum + a.sizeBytes, 0);
+  const selectedVisible = items.filter(a => state.selectedAssets.has(a.id)).length;
+
+  $('lootSummary').classList.toggle('empty', !all.length);
+  $('lootSummary').textContent = all.length
+    ? `${items.length} visible of ${all.length} downloadable files · ${formatBytes(knownSize)} known weight · ${selectedVisible} selected`
+    : 'No loot in the locker yet.';
+
+  const selectAll = $('selectAllAssets');
+  selectAll.disabled = !items.length;
+  selectAll.checked = items.length > 0 && items.every(a => state.selectedAssets.has(a.id));
+  selectAll.indeterminate = selectedVisible > 0 && selectedVisible < items.length;
+
+  if (!items.length) {
+    body.innerHTML = '<tr><td colspan="6" class="empty-cell">No loot matches those filters.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = items.map(asset => `
+    <tr>
+      <td><input class="asset-check" type="checkbox" data-asset-id="${escapeAttr(asset.id)}" ${state.selectedAssets.has(asset.id) ? 'checked' : ''}></td>
+      <td><span class="type-pill">${escapeHtml(asset.category)}</span></td>
+      <td><strong>${escapeHtml(asset.filename)}</strong><small>${escapeHtml(asset.type)}</small></td>
+      <td>${sizeLabel(asset)}</td>
+      <td><a href="${escapeAttr(asset.url)}" target="_blank" rel="noreferrer">${escapeHtml(asset.url)}</a></td>
+      <td class="table-actions"><button class="mini" data-download-one="${escapeAttr(asset.id)}">Download</button></td>
+    </tr>
+  `).join('');
+
+  body.querySelectorAll('.asset-check').forEach(input => {
+    input.addEventListener('change', () => {
+      if (input.checked) state.selectedAssets.add(input.dataset.assetId);
+      else state.selectedAssets.delete(input.dataset.assetId);
+      renderLootLocker();
+    });
+  });
+  body.querySelectorAll('[data-download-one]').forEach(btn => btn.addEventListener('click', () => downloadOneAsset(btn.dataset.downloadOne)));
+}
+
+function sizeLabel(asset) {
+  if (asset.sizeBytes != null) return `<strong>${formatBytes(asset.sizeBytes)}</strong>`;
+  if (asset.sizeStatus === 'blocked') return '<span class="warn">blocked</span>';
+  if (asset.sizeStatus === 'missing') return '<span class="warn">unknown</span>';
+  return '<span class="muted">not weighed</span>';
+}
+
+function formatBytes(bytes) {
+  if (!bytes && bytes !== 0) return 'Unknown';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+async function checkAssetSizes() {
+  const assets = filteredAssets();
+  if (!assets.length) return setStatus('No loot to weigh', 'error');
+  setStatus(`Weighing ${assets.length} files...`);
+  for (const asset of assets) {
+    try {
+      const res = await fetch(asset.url, { method: 'HEAD', mode: 'cors' });
+      const length = res.headers.get('content-length');
+      writeAssetBack(asset, { sizeBytes: length ? Number(length) : null, sizeStatus: length ? 'known' : 'missing' });
+    } catch {
+      writeAssetBack(asset, { sizeBytes: null, sizeStatus: 'blocked' });
+    }
+  }
+  renderLootLocker();
+  setStatus('Loot weighed where allowed');
+}
+
+async function fetchAssetBlob(asset) {
+  const res = await fetch(asset.url, { mode: 'cors' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  if (asset.sizeBytes == null) writeAssetBack(asset, { sizeBytes: blob.size, sizeStatus: 'known' });
+  return blob;
+}
+
+async function downloadOneAsset(assetId) {
+  const asset = downloadableAssets().find(a => a.id === assetId);
+  if (!asset) return;
+  try {
+    setStatus(`Bagging ${asset.filename}...`);
+    const blob = await fetchAssetBlob(asset);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeFilename(asset.filename || 'asset');
+    a.click();
+    URL.revokeObjectURL(url);
+    renderLootLocker();
+    setStatus('Loot bagged');
+  } catch (err) {
+    setStatus('Host blocked the download. Opening asset instead.', 'error');
+    window.open(asset.url, '_blank', 'noreferrer');
+  }
+}
+
+async function downloadZip(mode = 'visible') {
+  if (!window.JSZip) return alert('ZIP goblin failed to load. Check your connection and refresh.');
+  let assets = mode === 'all' ? downloadableAssets() : filteredAssets();
+  const selected = assets.filter(a => state.selectedAssets.has(a.id));
+  if (selected.length) assets = selected;
+  if (!assets.length) return setStatus('No loot to zip', 'error');
+
+  const zip = new JSZip();
+  const log = [];
+  setStatus(`Stuffing ${assets.length} files into ZIP...`);
+
+  for (const asset of assets) {
+    try {
+      const blob = await fetchAssetBlob(asset);
+      const folder = zip.folder(asset.category + 's');
+      folder.file(uniqueZipName(folder, safeFilename(asset.filename || `${asset.category}-asset`)), blob);
+      log.push(`OK   ${asset.url}`);
+    } catch (err) {
+      log.push(`SKIP ${asset.url} — ${err.message || 'blocked'}`);
+    }
+  }
+
+  zip.file('asset-goblin-download-log.txt', log.join('\n'));
+  zip.file('asset-goblin-hoard.json', JSON.stringify(state, null, 2));
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `asset-goblin-${mode}-loot.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+  renderLootLocker();
+  const skipped = log.filter(x => x.startsWith('SKIP')).length;
+  setStatus(skipped ? `ZIP made, ${skipped} blocked` : 'ZIP made');
+}
+
+function uniqueZipName(folder, name) {
+  let finalName = name;
+  let i = 2;
+  while (folder.files && folder.files[folder.root + finalName]) {
+    const dot = name.lastIndexOf('.');
+    finalName = dot > 0 ? `${name.slice(0, dot)}-${i}${name.slice(dot)}` : `${name}-${i}`;
+    i++;
+  }
+  return finalName;
+}
+
+function safeFilename(name) {
+  return String(name || 'asset').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 160) || 'asset';
+}
+
+function hookLockerEvents() {
+  ['assetSearchInput', 'assetTypeFilter', 'assetSortSelect', 'minSizeInput', 'maxSizeInput'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', renderLootLocker);
+  });
+  $('selectAllAssets')?.addEventListener('change', e => {
+    const items = filteredAssets();
+    items.forEach(asset => e.target.checked ? state.selectedAssets.add(asset.id) : state.selectedAssets.delete(asset.id));
+    renderLootLocker();
+  });
+  $('checkSizesBtn')?.addEventListener('click', checkAssetSizes);
+  $('downloadVisibleZipBtn')?.addEventListener('click', () => downloadZip('visible'));
+  $('downloadAllZipBtn')?.addEventListener('click', () => downloadZip('all'));
+}
+
 // Events
 $('scanUrlBtn').addEventListener('click', scanUrl);
 $('scanHtmlBtn').addEventListener('click', scanHtml);
@@ -361,3 +599,4 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 $('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') scanUrl(); });
+hookLockerEvents();

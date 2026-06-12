@@ -1,33 +1,32 @@
-# Asset Goblin — Goblin-Themed Content Extractor + Brand Hoard
+# Asset Goblin
 
-A simple static GitHub Pages app that extracts webpage assets and brand-kit style information.
+A goblin-themed static GitHub Pages tool that extracts page assets and brand clues from a URL or pasted HTML.
 
-## Features
+## What it grabs
 
-- URL scan, when the target site allows CORS
-- Paste HTML fallback for blocked sites
-- Extracts images, videos/iframes, fonts/stylesheets, colors, links, and readable page text
-- Brand kit summary with title, description, top colors, fonts, and likely logo/icon assets
-- Downloads JSON, CSV, text, and URL lists
-- No backend and no data upload
+- Images
+- Videos and embeds
+- Fonts and stylesheets
+- Colors
+- Links
+- Page text
+- Basic brand-kit clues
 
-## GitHub Pages setup
+## Loot Locker
 
-1. Create a new GitHub repo.
-2. Upload `index.html`, `styles.css`, `app.js`, and this `README.md` to the repo root.
-3. Go to **Settings → Pages**.
-4. Set **Source** to `Deploy from a branch`.
-5. Select your main branch and `/root`.
-6. Save.
+The Loot Locker lets you:
 
-## Browser limitation
+- Search discovered files
+- Filter by images, videos, or fonts/stylesheets
+- Sort by size, name, type, or URL
+- Attempt to check remote file sizes
+- Download one asset
+- Download visible or selected assets as a ZIP
+- Download all available assets as a ZIP
 
-A static browser app cannot fetch every website because many sites block cross-origin browser requests with CORS or bot protection. When that happens, use **Paste HTML** mode:
+ZIP downloads use JSZip from jsDelivr. Actual file downloads are still controlled by the asset host's browser/CORS rules. If a host blocks browser fetching, Asset Goblin will skip that file in the ZIP and write it into `asset-goblin-download-log.txt`.
 
-1. Open the target webpage.
-2. View page source.
-3. Copy all HTML.
-4. Paste it into the app.
-5. Add the page URL as the optional base URL so relative assets resolve correctly.
+## GitHub Pages
 
-For full unrestricted URL scanning, you would need a small backend/proxy, Cloudflare Worker, or GitHub Action.
+This is static HTML/CSS/JS. It can deploy through GitHub Actions or Pages branch deploy.
+
