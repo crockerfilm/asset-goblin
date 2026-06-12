@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Asset Goblin v0.1.0</title>
+  <title>Asset Goblin v0.1.1</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -289,7 +289,7 @@
         <h1>Asset Goblin</h1>
         <p class="sub">Paste a page URL. Asset Goblin sniffs out images and videos, then lets you download one, selected, visible, or all.</p>
       </div>
-      <div class="badge">goblin mode · v0.1.0</div>
+      <div class="badge">goblin mode · v0.1.1</div>
     </header>
 
     <section class="panel">
@@ -308,11 +308,11 @@
         <select id="extFilter">
           <option value="all">Any format</option>
         </select>
-        <input id="minKb" type="number" min="0" placeholder="Min KB" />
+        <input id="minKb" type="number" min="0" placeholder="Min KB" title="Set to 0 to show tiny icons/pixels" />
         <input id="maxKb" type="number" min="0" placeholder="Max KB" />
         <select id="sortSelect">
           <option value="default">Sort: found</option>
-          <option value="size-desc">Largest</option>
+          <option value="size-desc" selected>Largest</option>
           <option value="size-asc">Smallest</option>
           <option value="name-asc">Name A-Z</option>
           <option value="type-asc">Type</option>
@@ -322,7 +322,7 @@
 
       <div class="status" id="status"></div>
       <p class="note">
-        Static-site caveat: some sites block browser fetching/downloading with CORS. When that happens, opening the direct asset may still work.
+        Default hides tiny assets under 25 KB. Set Min KB to 0 to show everything. Some sites block browser size checks/downloads with CORS; Open may still work.
       </p>
     </section>
 
@@ -345,8 +345,13 @@
     let items = [];
     let sourcePage = '';
 
+    const DEFAULT_MIN_KB = 25;
+
     const IMAGE_EXTS = ['jpg','jpeg','png','gif','webp','avif','svg','bmp'];
     const VIDEO_EXTS = ['mp4','webm','mov','m4v','m3u8'];
+
+    minKb.value = DEFAULT_MIN_KB;
+    sortSelect.value = 'size-desc';
 
     function setStatus(message, tone = '') {
       statusEl.textContent = message;
@@ -595,6 +600,10 @@
         const matchesQ = !q || item.name.toLowerCase().includes(q) || item.url.toLowerCase().includes(q);
         const matchesType = type === 'all' || item.type === type;
         const matchesExt = ext === 'all' || item.ext === ext;
+
+        // Keep unknown-size videos visible, but hide obvious tiny junk by default.
+        if (min && item.size == null && isLikelyTinyJunk(item)) return false;
+
         const matchesMin = !min || item.size == null || item.size >= min;
         const matchesMax = !max || item.size == null || item.size <= max;
         return matchesQ && matchesType && matchesExt && matchesMin && matchesMax;
@@ -602,7 +611,11 @@
 
       switch (sortSelect.value) {
         case 'size-desc':
-          list.sort((a,b) => (b.size ?? -1) - (a.size ?? -1));
+          list.sort((a,b) => {
+            const av = a.size ?? (a.type === 'video' ? 0 : -1);
+            const bv = b.size ?? (b.type === 'video' ? 0 : -1);
+            return bv - av;
+          });
           break;
         case 'size-asc':
           list.sort((a,b) => (a.size ?? Number.MAX_SAFE_INTEGER) - (b.size ?? Number.MAX_SAFE_INTEGER));
@@ -613,9 +626,23 @@
         case 'type-asc':
           list.sort((a,b) => (a.type + a.ext + a.name).localeCompare(b.type + b.ext + b.name, undefined, { numeric:true }));
           break;
+        case 'default':
+        default:
+          list.sort((a,b) => (b.size ?? -1) - (a.size ?? -1));
+          break;
       }
 
       return list;
+    }
+
+    function isLikelyTinyJunk(item) {
+      const haystack = `${item.name} ${item.url}`.toLowerCase();
+      return (
+        /favicon|apple-touch-icon|mask-icon|mstile|sprite|pixel|tracking|beacon|1x1|spacer/.test(haystack) ||
+        /(?:^|[^0-9])(16|24|32|48|64)x\1(?:[^0-9]|$)/.test(haystack) ||
+        /[?&](w|width|h|height)=([1-9]|[1-5][0-9]|6[0-4])(?:&|$)/.test(haystack) ||
+        /\/w_([1-9]|[1-5][0-9]|6[0-4]),/.test(haystack)
+      );
     }
 
     function render() {
@@ -685,20 +712,55 @@
     }
 
     async function weighVisible({ quiet = false } = {}) {
-      const visible = filteredItems().slice(0, 60);
+      const visible = filteredItems().slice(0, 80);
 
       await Promise.allSettled(visible.map(async item => {
         if (item.size != null) return;
-
-        try {
-          const res = await fetch(item.url, { method:'HEAD', mode:'cors' });
-          const len = res.headers.get('content-length');
-          if (len) item.size = Number(len);
-        } catch {}
+        item.size = await probeFileSize(item.url);
       }));
 
       render();
       if (!quiet) setStatus('Checked file sizes where the browser allowed it.', 'good');
+    }
+
+    async function probeFileSize(url) {
+      // 1) Best case: normal HEAD exposes Content-Length.
+      try {
+        const res = await fetch(url, { method:'HEAD', mode:'cors' });
+        const len = readSizeHeaders(res);
+        if (len) return len;
+      } catch {}
+
+      // 2) Better for videos: range request often exposes total size as Content-Range.
+      try {
+        const controller = new AbortController();
+        const res = await fetch(url, {
+          method:'GET',
+          mode:'cors',
+          headers:{ Range:'bytes=0-0' },
+          signal: controller.signal
+        });
+
+        const len = readSizeHeaders(res);
+        controller.abort();
+
+        if (len) return len;
+      } catch {}
+
+      return null;
+    }
+
+    function readSizeHeaders(res) {
+      const range = res.headers.get('content-range');
+      if (range) {
+        const match = range.match(/\/(\d+)$/);
+        if (match) return Number(match[1]);
+      }
+
+      const len = res.headers.get('content-length');
+      if (len) return Number(len);
+
+      return null;
     }
 
     async function downloadOne(url) {
@@ -798,6 +860,6 @@
 
     downloadVisibleBtn.addEventListener('click', downloadVisible);
   </script>
-  <div id="versionPill" class="versionPill">Asset Goblin v0.1.0</div>
+  <div id="versionPill" class="versionPill">Asset Goblin v0.1.1</div>
 </body>
 </html>
