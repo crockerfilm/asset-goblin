@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Asset Goblin — Content Extractor + Brand Hoarder</title>
+  <meta name="description" content="Extract images, videos, fonts, colors, links, text, and basic brand assets from a webpage." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Static GitHub Pages Tool · Goblin Mode</p>
+      <div class="hero-title"><div class="goblin-face" aria-hidden="true"><span></span></div><h1>Asset Goblin</h1></div>
+      <p class="subtitle">Feed it a URL or page HTML and let the little goblin loot images, videos, fonts, colors, links, copy, and brand-kit clues.</p>
+    </div>
+    <div class="status-pill" id="statusPill">Cave ready</div>
+  </header>
+
+  <main class="layout">
+    <section class="panel input-panel">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-mode="url">URL</button>
+        <button class="tab" data-mode="html">Paste HTML</button>
+      </div>
+
+      <div id="urlMode" class="mode-block">
+        <label for="urlInput">Treasure Map URL</label>
+        <div class="row">
+          <input id="urlInput" type="url" placeholder="https://example.com" autocomplete="off" />
+          <button id="scanUrlBtn">Raid URL</button>
+        </div>
+        <p class="hint">Some castles block browser goblins with CORS. If the raid fails, open the page source, copy it, and use Paste HTML.</p>
+      </div>
+
+      <div id="htmlMode" class="mode-block hidden">
+        <label for="htmlInput">Raw cave scroll / HTML source</label>
+        <textarea id="htmlInput" placeholder="Paste the full page HTML scroll here..."></textarea>
+        <div class="row">
+          <input id="baseUrlInput" type="url" placeholder="Optional home cave URL for relative assets, e.g. https://example.com/page" />
+          <button id="scanHtmlBtn">Raid HTML</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="downloadJsonBtn" disabled>Download Hoard JSON</button>
+        <button id="downloadCsvBtn" disabled>Download Loot CSV</button>
+        <button id="copySummaryBtn" disabled>Copy Goblin Report</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+      </div>
+    </section>
+
+    <section class="summary-grid" aria-live="polite">
+      <article class="metric"><span id="imageCount">0</span><small>Images</small></article>
+      <article class="metric"><span id="videoCount">0</span><small>Videos</small></article>
+      <article class="metric"><span id="fontCount">0</span><small>Fonts</small></article>
+      <article class="metric"><span id="colorCount">0</span><small>Colors</small></article>
+      <article class="metric"><span id="linkCount">0</span><small>Links</small></article>
+      <article class="metric"><span id="wordCount">0</span><small>Words</small></article>
+    </section>
+
+    <section class="panel brand-panel">
+      <div class="section-heading">
+        <h2>Brand Hoard</h2>
+        <p>Auto-detected title, description, colors, fonts, logos, and other shiny brand bits.</p>
+      </div>
+      <div id="brandKit" class="brand-kit empty">Run a raid to fill the brand hoard.</div>
+    </section>
+
+    <section class="results">
+      <article class="panel">
+        <div class="section-heading">
+          <h2>Images</h2>
+          <button class="mini" data-download-list="images">Bag Image URLs</button>
+        </div>
+        <div id="imagesGrid" class="asset-grid empty">No image loot yet.</div>
+      </article>
+
+      <article class="panel">
+        <div class="section-heading">
+          <h2>Videos</h2>
+          <button class="mini" data-download-list="videos">Bag Video URLs</button>
+        </div>
+        <div id="videosGrid" class="asset-grid empty">No moving-picture loot yet.</div>
+      </article>
+
+      <article class="panel">
+        <div class="section-heading">
+          <h2>Fonts</h2>
+          <button class="mini" data-download-list="fonts">Bag Font URLs</button>
+        </div>
+        <div id="fontsList" class="list empty">No font runes yet.</div>
+      </article>
+
+      <article class="panel">
+        <div class="section-heading">
+          <h2>Colors</h2>
+          <button class="mini" data-download-list="colors">Bag Colors</button>
+        </div>
+        <div id="colorsGrid" class="color-grid empty">No color gems yet.</div>
+      </article>
+
+      <article class="panel wide">
+        <div class="section-heading">
+          <h2>Page Scroll</h2>
+          <button class="mini" id="downloadTextBtn" disabled>Download Scroll Text</button>
+        </div>
+        <div id="contentBox" class="content-box empty">No page scroll text yet.</div>
+      </article>
+
+      <article class="panel wide">
+        <div class="section-heading">
+          <h2>Links</h2>
+          <button class="mini" data-download-list="links">Bag Links</button>
+        </div>
+        <div id="linksList" class="list empty">No link tunnels yet.</div>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <p>Runs entirely in your browser cave. No backend, no tracking, no uploads.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
