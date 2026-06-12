@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Asset Goblin v0.1.1</title>
+  <title>Asset Goblin v0.1.2</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -289,7 +289,7 @@
         <h1>Asset Goblin</h1>
         <p class="sub">Paste a page URL. Asset Goblin sniffs out images and videos, then lets you download one, selected, visible, or all.</p>
       </div>
-      <div class="badge">goblin mode · v0.1.1</div>
+      <div class="badge">goblin mode · v0.1.2</div>
     </header>
 
     <section class="panel">
@@ -769,12 +769,14 @@
 
       try {
         setStatus(`Downloading ${item.name}...`);
-        const blob = await fetchBlob(item.url);
-        downloadBlob(blob, safeFilename(item.name, item.ext));
-        setStatus(`Downloaded ${item.name}.`, 'good');
+        const downloadUrl = preferredDownloadUrl(item);
+        const blob = await fetchBlob(downloadUrl);
+        const filename = safeFilenameForBlob(item.name, item.ext, blob.type);
+        downloadBlob(blob, filename);
+        setStatus(`Downloaded ${filename}.`, 'good');
       } catch (err) {
         console.error(err);
-        setStatus('Download blocked by browser/CORS. Try Open, then save from the direct asset tab.', 'bad');
+        setStatus('Download blocked or returned a non-video file. Try Open, then save from the direct asset tab.', 'bad');
       }
     }
 
@@ -793,8 +795,9 @@
 
       for (const item of list) {
         try {
-          const blob = await fetchBlob(item.url);
-          zip.file(safeFilename(item.name, item.ext), blob);
+          const downloadUrl = preferredDownloadUrl(item);
+          const blob = await fetchBlob(downloadUrl);
+          zip.file(safeFilenameForBlob(item.name, item.ext, blob.type), blob);
         } catch {
           failed.push(item.url);
         }
@@ -816,7 +819,68 @@
     async function fetchBlob(url) {
       const res = await fetch(url, { mode:'cors' });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      return await res.blob();
+
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      const blob = await res.blob();
+
+      // Guard against saving HTML/XML error pages as fake videos.
+      if (/text\/html|application\/xml|text\/xml|application\/json/.test(contentType)) {
+        throw new Error(`Not a media file: ${contentType}`);
+      }
+
+      return blob;
+    }
+
+    function preferredDownloadUrl(item) {
+      // Cloudinary f_auto can return a codec/container that does not match the .mp4 filename.
+      // For downloads, force a plain MP4 rendition when possible.
+      if (item.type === 'video') {
+        const mp4 = cloudinaryForceMp4(item.url);
+        if (mp4) return mp4;
+      }
+      return item.url;
+    }
+
+    function cloudinaryForceMp4(url) {
+      try {
+        const u = new URL(url);
+        if (!/res\.cloudinary\.com$/i.test(u.hostname)) return '';
+        if (!/\/video\/upload\//i.test(u.pathname)) return '';
+
+        const afterUpload = u.pathname.split('/video/upload/')[1] || '';
+        const match = afterUpload.match(/v\d+\/.+$/);
+        if (!match) return '';
+
+        let rest = match[0]
+          .replace(/\.(jpg|jpeg|png|webp|avif|m3u8)$/i, '.mp4')
+          .replace(/\.(webm|mov|m4v)$/i, '.mp4');
+
+        if (!/\.mp4$/i.test(rest)) rest += '.mp4';
+
+        return `${u.origin}/video/upload/f_mp4,q_auto/${rest}`;
+      } catch {
+        return '';
+      }
+    }
+
+    function extFromMime(mime) {
+      mime = String(mime || '').toLowerCase().split(';')[0].trim();
+
+      const map = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+        'image/avif': 'avif',
+        'image/svg+xml': 'svg',
+        'video/mp4': 'mp4',
+        'video/webm': 'webm',
+        'video/quicktime': 'mov',
+        'application/vnd.apple.mpegurl': 'm3u8',
+        'application/x-mpegurl': 'm3u8'
+      };
+
+      return map[mime] || '';
     }
 
     function downloadBlob(blob, filename) {
@@ -828,6 +892,15 @@
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function safeFilenameForBlob(name, fallbackExt, mime) {
+      const realExt = extFromMime(mime) || fallbackExt || 'bin';
+
+      let clean = (name || 'asset').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120);
+      clean = clean.replace(/\.(jpg|jpeg|png|gif|webp|avif|svg|bmp|mp4|webm|mov|m4v|m3u8|bin)$/i, '');
+
+      return `${clean}.${realExt}`;
     }
 
     function safeFilename(name, ext) {
@@ -860,6 +933,6 @@
 
     downloadVisibleBtn.addEventListener('click', downloadVisible);
   </script>
-  <div id="versionPill" class="versionPill">Asset Goblin v0.1.1</div>
+  <div id="versionPill" class="versionPill">Asset Goblin v0.1.2</div>
 </body>
 </html>
