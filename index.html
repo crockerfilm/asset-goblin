@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Asset Goblin v0.1.7</title>
+  <title>Asset Goblin v0.1.8</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -120,7 +120,7 @@
 
     .controls {
       display:grid;
-      grid-template-columns:1fr 150px 150px 120px 120px auto auto;
+      grid-template-columns:1fr 150px 150px 120px 120px auto auto auto;
       gap:10px;
       align-items:center;
     }
@@ -289,7 +289,7 @@
         <h1>Asset Goblin</h1>
         <p class="sub">Paste a page URL. Asset Goblin sniffs out images and videos, then lets you download one, selected, visible, or all.</p>
       </div>
-      <div class="badge">goblin mode · v0.1.7</div>
+      <div class="badge">goblin mode · v0.1.8</div>
     </header>
 
     <section class="panel">
@@ -319,6 +319,7 @@
         </select>
         <button id="downloadVisibleBtn" class="gold" disabled>ZIP visible</button>
         <button id="directDownloadBtn" disabled>Direct download</button>
+        <button id="terminalScriptBtn" disabled>Copy Terminal script</button>
       </div>
 
       <div class="status" id="status"></div>
@@ -343,6 +344,7 @@
     const sortSelect = document.getElementById('sortSelect');
     const downloadVisibleBtn = document.getElementById('downloadVisibleBtn');
     const directDownloadBtn = document.getElementById('directDownloadBtn');
+    const terminalScriptBtn = document.getElementById('terminalScriptBtn');
 
     let items = [];
     let sourcePage = '';
@@ -650,6 +652,7 @@
     function render() {
       const list = filteredItems();
       downloadVisibleBtn.disabled = !list.length;
+      terminalScriptBtn.disabled = !list.length;
       directDownloadBtn.disabled = !list.length;
 
       if (!items.length) {
@@ -818,6 +821,116 @@
       setStatus(failed.length ? `ZIP created, but ${failed.length} file${failed.length === 1 ? '' : 's'} were blocked by CORS. Use Direct download for those.` : 'ZIP downloaded.', failed.length ? 'bad' : 'good');
     }
 
+
+    function selectedVisibleItems() {
+      const selectedUrls = [...document.querySelectorAll('[data-select]:checked')].map(el => el.dataset.select);
+      return filteredItems().filter(item => selectedUrls.includes(item.url));
+    }
+
+    function shellQuote(value) {
+      return "'" + String(value).replaceAll("'", "'\"'\"'") + "'";
+    }
+
+    function terminalFilename(item) {
+      let name = safeFilename(item.name, item.ext);
+      if ((item.ext || '').toLowerCase() === 'm3u8') {
+        name = name.replace(/\.m3u8$/i, '.mp4');
+      }
+      return name;
+    }
+
+    function buildTerminalScript(list) {
+      const site = siteSlugFromUrl(sourcePage);
+      const ref = sourcePage || '';
+      const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15';
+
+      let script = `#!/usr/bin/env bash
+set -u
+
+SITE=${shellQuote(site)}
+DIR="$HOME/Downloads/$SITE"
+REF=${shellQuote(ref)}
+UA=${shellQuote(ua)}
+
+mkdir -p "$DIR"
+cd "$DIR"
+rm -f _failed.txt
+
+if ! command -v yt-dlp >/dev/null 2>&1; then
+  echo "yt-dlp is missing. Install it with:"
+  echo "brew install yt-dlp ffmpeg"
+  exit 1
+fi
+
+echo "Downloading ${list.length} file(s) to: $DIR"
+echo ""
+
+download_asset() {
+  local url="$1"
+  local out="$2"
+
+  echo "→ $out"
+
+  yt-dlp \\
+    --no-playlist \\
+    --retries 5 \\
+    --fragment-retries 5 \\
+    --add-header "Referer: $REF" \\
+    --add-header "User-Agent: $UA" \\
+    -o "$out" \\
+    "$url" \\
+  || curl -L --fail --retry 3 --continue-at - \\
+    -A "$UA" \\
+    -e "$REF" \\
+    -o "$out" \\
+    "$url" \\
+  || echo "$url" >> _failed.txt
+}
+
+`;
+
+      for (const item of list) {
+        const url = preferredDownloadUrl(item);
+        const name = terminalFilename(item);
+        script += `download_asset ${shellQuote(url)} ${shellQuote(name)}\n`;
+      }
+
+      script += `
+echo ""
+if [ -f _failed.txt ]; then
+  echo "Some files failed. See: $DIR/_failed.txt"
+else
+  echo "Done. Files saved to: $DIR"
+fi
+`;
+
+      return script;
+    }
+
+    async function copyTerminalScript() {
+      const list = selectedVisibleItems();
+
+      if (!list.length) {
+        setStatus('Select at least one file first.', 'bad');
+        return;
+      }
+
+      const script = buildTerminalScript(list);
+
+      try {
+        await navigator.clipboard.writeText(script);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = script;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+
+      setStatus(`Copied yt-dlp Terminal script for ${list.length} file${list.length === 1 ? '' : 's'}. Paste it into Terminal.`, 'good');
+    }
+
     async function directDownloadVisible() {
       const list = selectedVisibleItems();
 
@@ -975,7 +1088,8 @@
 
     downloadVisibleBtn.addEventListener('click', downloadVisible);
     directDownloadBtn.addEventListener('click', directDownloadVisible);
+    terminalScriptBtn.addEventListener('click', copyTerminalScript);
   </script>
-  <div id="versionPill" class="versionPill">Asset Goblin v0.1.7</div>
+  <div id="versionPill" class="versionPill">Asset Goblin v0.1.8</div>
 </body>
 </html>
