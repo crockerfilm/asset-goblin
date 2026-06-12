@@ -2,75 +2,785 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Asset Goblin — Image & Video Extractor</title>
-  <meta name="description" content="A simple browser-based image and video extractor for GitHub Pages." />
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Asset Goblin</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg:#10130f;
+      --panel:#191f17;
+      --panel2:#222b1d;
+      --text:#f3f7ed;
+      --muted:#a8b39f;
+      --line:#34402e;
+      --accent:#a7f06f;
+      --accent2:#e5c66b;
+      --bad:#ff9b8f;
+      --radius:18px;
+    }
+
+    * { box-sizing:border-box; }
+
+    body {
+      margin:0;
+      min-height:100vh;
+      background:
+        radial-gradient(circle at top left, rgba(167,240,111,.16), transparent 34rem),
+        radial-gradient(circle at bottom right, rgba(229,198,107,.12), transparent 30rem),
+        var(--bg);
+      color:var(--text);
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .wrap {
+      width:min(1120px, calc(100vw - 32px));
+      margin:0 auto;
+      padding:36px 0 56px;
+    }
+
+    header {
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:18px;
+      margin-bottom:22px;
+    }
+
+    h1 {
+      margin:0 0 6px;
+      font-size:clamp(2.4rem, 7vw, 5rem);
+      letter-spacing:-.06em;
+      line-height:.9;
+    }
+
+    .sub {
+      color:var(--muted);
+      margin:0;
+      max-width:720px;
+      line-height:1.5;
+    }
+
+    .badge {
+      color:#17200f;
+      background:linear-gradient(180deg, var(--accent), #72c94a);
+      border-radius:999px;
+      padding:10px 14px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+
+    .panel {
+      background:rgba(25,31,23,.88);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:0 18px 60px rgba(0,0,0,.24);
+      padding:14px;
+    }
+
+    .form {
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:10px;
+      margin-bottom:12px;
+    }
+
+    input, select, button {
+      height:44px;
+      border-radius:13px;
+      border:1px solid var(--line);
+      background:var(--panel2);
+      color:var(--text);
+      padding:0 12px;
+      font:inherit;
+    }
+
+    input::placeholder { color:#7f8b77; }
+
+    button {
+      cursor:pointer;
+      font-weight:800;
+    }
+
+    button.primary {
+      color:#14200d;
+      background:linear-gradient(180deg, var(--accent), #75ce4d);
+      border:none;
+    }
+
+    button.gold {
+      color:#251b06;
+      background:linear-gradient(180deg, #f0d67c, #d7aa36);
+      border:none;
+    }
+
+    button:disabled {
+      opacity:.45;
+      cursor:not-allowed;
+    }
+
+    .controls {
+      display:grid;
+      grid-template-columns:1fr 150px 150px 120px 120px auto auto;
+      gap:10px;
+      align-items:center;
+    }
+
+    .status {
+      min-height:24px;
+      color:var(--muted);
+      margin:12px 4px 0;
+      font-size:.94rem;
+    }
+
+    .status.bad { color:var(--bad); }
+    .status.good { color:var(--accent); }
+
+    .grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(210px, 1fr));
+      gap:14px;
+      margin-top:18px;
+    }
+
+    .card {
+      background:rgba(25,31,23,.92);
+      border:1px solid var(--line);
+      border-radius:18px;
+      overflow:hidden;
+      min-width:0;
+    }
+
+    .thumb {
+      height:160px;
+      background:
+        linear-gradient(45deg, rgba(255,255,255,.04) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255,255,255,.04) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,.04) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,.04) 75%);
+      background-size:22px 22px;
+      background-position:0 0,0 11px,11px -11px,-11px 0;
+      border-bottom:1px solid var(--line);
+      display:grid;
+      place-items:center;
+      overflow:hidden;
+      position:relative;
+    }
+
+    .thumb img,
+    .thumb video {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+
+    .thumb video {
+      cursor:pointer;
+    }
+
+    .playhint {
+      position:absolute;
+      inset:auto 10px 10px auto;
+      background:rgba(0,0,0,.62);
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:999px;
+      padding:6px 9px;
+      font-size:.78rem;
+      font-weight:800;
+      pointer-events:none;
+    }
+
+    .check {
+      position:absolute;
+      top:10px;
+      left:10px;
+      width:22px;
+      height:22px;
+      accent-color:#91e665;
+      z-index:2;
+    }
+
+    .meta {
+      padding:12px;
+    }
+
+    .name {
+      font-weight:850;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      margin-bottom:8px;
+    }
+
+    .details {
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      color:var(--muted);
+      font-size:.86rem;
+      margin-bottom:10px;
+    }
+
+    .url {
+      color:var(--muted);
+      font-size:.78rem;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      margin-bottom:12px;
+    }
+
+    .actions {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+
+    .actions button {
+      height:36px;
+      font-size:.88rem;
+    }
+
+    .empty {
+      margin-top:18px;
+      color:var(--muted);
+      border:1px dashed var(--line);
+      border-radius:var(--radius);
+      padding:24px;
+      text-align:center;
+    }
+
+    .note {
+      color:var(--muted);
+      font-size:.84rem;
+      line-height:1.45;
+      margin:14px 4px 0;
+    }
+
+    @media (max-width:880px) {
+      header { display:block; }
+      .badge { display:inline-block; margin-top:14px; }
+      .form { grid-template-columns:1fr; }
+      .controls { grid-template-columns:1fr 1fr; }
+      .controls input:first-child { grid-column:1 / -1; }
+    }
+  </style>
 </head>
 <body>
-  <main class="app">
-    <section class="hero">
-      <div class="mark" aria-hidden="true"> goblin </div>
-      <h1>Asset Goblin</h1>
-      <p>Paste a page URL. Grab the images and videos. Download some or all.</p>
-    </section>
+  <main class="wrap">
+    <header>
+      <div>
+        <h1>Asset Goblin</h1>
+        <p class="sub">Paste a page URL. Asset Goblin sniffs out images and videos, then lets you download one, selected, visible, or all.</p>
+      </div>
+      <div class="badge">goblin mode</div>
+    </header>
 
-    <section class="panel input-panel" aria-labelledby="extract-heading">
-      <h2 id="extract-heading">Extract media</h2>
-      <form id="extractForm" class="url-form">
-        <input id="urlInput" type="url" placeholder="https://example.com/page" autocomplete="url" required />
-        <button id="extractBtn" type="submit">Extract</button>
-      </form>
-      <p id="status" class="status">Ready.</p>
-    </section>
-
-    <section id="resultsPanel" class="panel results-panel" hidden>
-      <div class="toolbar">
-        <div>
-          <h2>Found media</h2>
-          <p id="countText" class="muted">0 files</p>
-        </div>
-        <div class="actions">
-          <button id="selectAllBtn" type="button" class="secondary">Select all</button>
-          <button id="selectNoneBtn" type="button" class="secondary">Select none</button>
-          <button id="downloadSelectedBtn" type="button">Download selected</button>
-          <button id="downloadAllBtn" type="button">Download all</button>
-        </div>
+    <section class="panel">
+      <div class="form">
+        <input id="urlInput" type="url" placeholder="https://www.zipline.com/" autocomplete="off" />
+        <button id="scanBtn" class="primary">Extract media</button>
       </div>
 
-      <div class="mini-filters" aria-label="Media type filters">
-        <button class="chip active" type="button" data-filter="all">All</button>
-        <button class="chip" type="button" data-filter="image">Images</button>
-        <button class="chip" type="button" data-filter="video">Videos</button>
+      <div class="controls">
+        <input id="searchInput" type="search" placeholder="Search filename or URL..." />
+        <select id="typeFilter">
+          <option value="all">All types</option>
+          <option value="image">Images</option>
+          <option value="video">Videos</option>
+        </select>
+        <select id="extFilter">
+          <option value="all">Any format</option>
+        </select>
+        <input id="minKb" type="number" min="0" placeholder="Min KB" />
+        <input id="maxKb" type="number" min="0" placeholder="Max KB" />
+        <select id="sortSelect">
+          <option value="default">Sort: found</option>
+          <option value="size-desc">Largest</option>
+          <option value="size-asc">Smallest</option>
+          <option value="name-asc">Name A-Z</option>
+          <option value="type-asc">Type</option>
+        </select>
+        <button id="downloadVisibleBtn" class="gold" disabled>Download visible</button>
       </div>
 
-      <div id="grid" class="grid" aria-live="polite"></div>
+      <div class="status" id="status"></div>
+      <p class="note">
+        Static-site caveat: some sites block browser fetching/downloading with CORS. When that happens, opening the direct asset may still work.
+      </p>
     </section>
+
+    <section id="results"></section>
   </main>
 
-  <template id="cardTemplate">
-    <article class="card">
-      <label class="select-wrap">
-        <input type="checkbox" class="asset-check" checked />
-        <span>Select</span>
-      </label>
-      <div class="preview"></div>
-      <div class="card-body">
-        <div class="card-topline">
-          <span class="pill"></span>
-          <span class="dims"></span>
-        </div>
-        <h3 class="filename"></h3>
-        <p class="source"></p>
-        <div class="card-actions">
-          <button type="button" class="download-one">Download</button>
-          <a class="open-link" target="_blank" rel="noreferrer">Open</a>
-        </div>
-      </div>
-    </article>
-  </template>
+  <script>
+    const urlInput = document.getElementById('urlInput');
+    const scanBtn = document.getElementById('scanBtn');
+    const statusEl = document.getElementById('status');
+    const results = document.getElementById('results');
+    const searchInput = document.getElementById('searchInput');
+    const typeFilter = document.getElementById('typeFilter');
+    const extFilter = document.getElementById('extFilter');
+    const minKb = document.getElementById('minKb');
+    const maxKb = document.getElementById('maxKb');
+    const sortSelect = document.getElementById('sortSelect');
+    const downloadVisibleBtn = document.getElementById('downloadVisibleBtn');
 
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
-  <script src="app.js" defer></script>
+    let items = [];
+    let sourcePage = '';
+
+    const IMAGE_EXTS = ['jpg','jpeg','png','gif','webp','avif','svg','bmp'];
+    const VIDEO_EXTS = ['mp4','webm','mov','m4v','m3u8'];
+
+    function setStatus(message, tone = '') {
+      statusEl.textContent = message;
+      statusEl.className = `status ${tone}`;
+    }
+
+    function normalizeUrl(raw, base) {
+      if (!raw) return '';
+      let value = String(raw).trim()
+        .replace(/^url\((.*)\)$/i, '$1')
+        .replace(/^['"]|['"]$/g, '')
+        .replaceAll('\\u002F', '/')
+        .replaceAll('\\/', '/')
+        .replaceAll('&amp;', '&');
+
+      if (!value || value.startsWith('data:') || value.startsWith('blob:') || value.startsWith('javascript:')) return '';
+
+      try {
+        return new URL(value, base).href;
+      } catch {
+        return '';
+      }
+    }
+
+    function extFromUrl(url) {
+      try {
+        const pathname = new URL(url).pathname.toLowerCase();
+        const last = pathname.split('/').pop() || '';
+        const ext = last.includes('.') ? last.split('.').pop() : '';
+        return ext.replace(/[^a-z0-9]/g, '');
+      } catch {
+        return '';
+      }
+    }
+
+    function filenameFromUrl(url) {
+      try {
+        const u = new URL(url);
+        const part = decodeURIComponent(u.pathname.split('/').pop() || 'asset');
+        return part || 'asset';
+      } catch {
+        return 'asset';
+      }
+    }
+
+    function typeFromUrl(url) {
+      const ext = extFromUrl(url);
+      if (IMAGE_EXTS.includes(ext)) return 'image';
+      if (VIDEO_EXTS.includes(ext)) return 'video';
+
+      if (/\/video\/upload\//i.test(url)) return 'video';
+      if (/\/image\/upload\//i.test(url)) return 'image';
+
+      return '';
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes && bytes !== 0) return 'unknown';
+      const units = ['B','KB','MB','GB'];
+      let size = bytes;
+      let unit = 0;
+      while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit++;
+      }
+      return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+    }
+
+    function assetId(url) {
+      return btoa(unescape(encodeURIComponent(url))).replace(/=+$/,'');
+    }
+
+    function addUrl(map, rawUrl, base, foundBy = 'page') {
+      const url = normalizeUrl(rawUrl, base);
+      if (!url) return;
+
+      const type = typeFromUrl(url);
+      if (!type) return;
+
+      map.set(url, {
+        id: assetId(url),
+        url,
+        name: filenameFromUrl(url),
+        type,
+        ext: extFromUrl(url) || (type === 'video' ? 'mp4' : ''),
+        foundBy,
+        size: null
+      });
+
+      for (const cloudinary of cloudinaryVideoCandidates(url)) {
+        if (!map.has(cloudinary)) {
+          map.set(cloudinary, {
+            id: assetId(cloudinary),
+            url: cloudinary,
+            name: filenameFromUrl(cloudinary),
+            type: 'video',
+            ext: extFromUrl(cloudinary) || 'mp4',
+            foundBy: 'cloudinary guess',
+            size: null
+          });
+        }
+      }
+    }
+
+    function cloudinaryVideoCandidates(url) {
+      const out = [];
+      if (!/res\.cloudinary\.com/i.test(url) || !/\/video\/upload\//i.test(url)) return out;
+
+      try {
+        const u = new URL(url);
+        const path = u.pathname;
+
+        if (/\.(jpg|jpeg|png|webp|avif)$/i.test(path)) {
+          const mp4Path = path.replace(/\.(jpg|jpeg|png|webp|avif)$/i, '.mp4');
+          out.push(`${u.origin}${mp4Path}`);
+        }
+
+        const noStillOffset = path.replace(/\/q_auto%2Cf_auto%2Cso_0\//i, '/q_auto,f_auto/');
+        if (noStillOffset !== path) {
+          out.push(`${u.origin}${noStillOffset.replace(/\.(jpg|jpeg|png|webp|avif)$/i, '.mp4')}`);
+        }
+      } catch {}
+
+      return out;
+    }
+
+    function extractFromHtml(html, baseUrl) {
+      const found = new Map();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+
+      doc.querySelectorAll('img[src], source[src], video[src], video[poster], a[href], link[href]').forEach(el => {
+        addUrl(found, el.getAttribute('src'), baseUrl, el.tagName.toLowerCase());
+        addUrl(found, el.getAttribute('poster'), baseUrl, 'poster');
+        addUrl(found, el.getAttribute('href'), baseUrl, el.tagName.toLowerCase());
+
+        const srcset = el.getAttribute('srcset');
+        if (srcset) {
+          srcset.split(',').forEach(part => addUrl(found, part.trim().split(/\s+/)[0], baseUrl, 'srcset'));
+        }
+      });
+
+      doc.querySelectorAll('[style]').forEach(el => {
+        extractUrlsFromText(el.getAttribute('style') || '', baseUrl, found, 'inline css');
+      });
+
+      doc.querySelectorAll('style, script').forEach(el => {
+        extractUrlsFromText(el.textContent || '', baseUrl, found, el.tagName.toLowerCase());
+      });
+
+      extractUrlsFromText(html, baseUrl, found, 'raw html');
+
+      return [...found.values()];
+    }
+
+    function extractUrlsFromText(text, baseUrl, map, foundBy) {
+      const decoded = String(text || '')
+        .replaceAll('\\u002F', '/')
+        .replaceAll('\\/', '/')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&amp;', '&');
+
+      const patterns = [
+        /https?:\/\/[^"'`<>\s)]+/gi,
+        /["'`](\/[^"'`<>\s)]+\.(?:jpg|jpeg|png|gif|webp|avif|svg|bmp|mp4|webm|mov|m4v|m3u8)(?:\?[^"'`<>\s)]*)?)["'`]/gi,
+        /url\(([^)]+)\)/gi
+      ];
+
+      for (const regex of patterns) {
+        let match;
+        while ((match = regex.exec(decoded))) {
+          addUrl(map, match[1] || match[0], baseUrl, foundBy);
+        }
+      }
+    }
+
+    async function fetchText(url) {
+      const tries = [
+        url,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        `https://r.jina.ai/http://r.jina.ai/http://http://${url.replace(/^https?:\/\//,'')}`
+      ];
+
+      let lastErr;
+      for (const attempt of tries) {
+        try {
+          const res = await fetch(attempt);
+          if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+          return await res.text();
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      throw lastErr || new Error('Fetch failed');
+    }
+
+    async function scan() {
+      const pageUrl = urlInput.value.trim();
+      if (!pageUrl) return;
+
+      sourcePage = pageUrl;
+      items = [];
+      render();
+      setStatus('Sniffing page for images and videos...');
+      scanBtn.disabled = true;
+
+      try {
+        const html = await fetchText(pageUrl);
+        items = dedupe(extractFromHtml(html, pageUrl));
+
+        buildExtFilter();
+        render();
+
+        if (!items.length) {
+          setStatus('No images or videos found in the readable page source. This page may require a server/browser renderer.', 'bad');
+        } else {
+          setStatus(`Found ${items.length} media item${items.length === 1 ? '' : 's'}.`, 'good');
+          weighVisible({ quiet: true });
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus('Could not read that page from the browser. The site probably blocks CORS.', 'bad');
+      } finally {
+        scanBtn.disabled = false;
+      }
+    }
+
+    function dedupe(list) {
+      const map = new Map();
+      for (const item of list) map.set(item.url, item);
+      return [...map.values()];
+    }
+
+    function buildExtFilter() {
+      const exts = [...new Set(items.map(i => i.ext).filter(Boolean))].sort();
+      extFilter.innerHTML = '<option value="all">Any format</option>' + exts.map(ext => `<option value="${escapeHtml(ext)}">${escapeHtml(ext.toUpperCase())}</option>`).join('');
+    }
+
+    function filteredItems() {
+      const q = searchInput.value.trim().toLowerCase();
+      const type = typeFilter.value;
+      const ext = extFilter.value;
+      const min = Number(minKb.value || 0) * 1024;
+      const max = Number(maxKb.value || 0) * 1024;
+
+      let list = items.filter(item => {
+        const matchesQ = !q || item.name.toLowerCase().includes(q) || item.url.toLowerCase().includes(q);
+        const matchesType = type === 'all' || item.type === type;
+        const matchesExt = ext === 'all' || item.ext === ext;
+        const matchesMin = !min || item.size == null || item.size >= min;
+        const matchesMax = !max || item.size == null || item.size <= max;
+        return matchesQ && matchesType && matchesExt && matchesMin && matchesMax;
+      });
+
+      switch (sortSelect.value) {
+        case 'size-desc':
+          list.sort((a,b) => (b.size ?? -1) - (a.size ?? -1));
+          break;
+        case 'size-asc':
+          list.sort((a,b) => (a.size ?? Number.MAX_SAFE_INTEGER) - (b.size ?? Number.MAX_SAFE_INTEGER));
+          break;
+        case 'name-asc':
+          list.sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric:true }));
+          break;
+        case 'type-asc':
+          list.sort((a,b) => (a.type + a.ext + a.name).localeCompare(b.type + b.ext + b.name, undefined, { numeric:true }));
+          break;
+      }
+
+      return list;
+    }
+
+    function render() {
+      const list = filteredItems();
+      downloadVisibleBtn.disabled = !list.length;
+
+      if (!items.length) {
+        results.innerHTML = '<div class="empty">No loot yet. Paste a URL and extract.</div>';
+        return;
+      }
+
+      if (!list.length) {
+        results.innerHTML = '<div class="empty">No media matches those filters.</div>';
+        return;
+      }
+
+      results.innerHTML = `<div class="grid">${list.map(renderCard).join('')}</div>`;
+
+      document.querySelectorAll('video[data-preview]').forEach(setupVideoPreview);
+      document.querySelectorAll('[data-download-one]').forEach(btn => {
+        btn.addEventListener('click', () => downloadOne(btn.dataset.downloadOne));
+      });
+    }
+
+    function renderCard(item) {
+      const preview = item.type === 'video'
+        ? `<video data-preview src="${escapeAttr(item.url)}" muted playsinline preload="metadata"></video><div class="playhint">play</div>`
+        : `<img src="${escapeAttr(item.url)}" alt="" loading="lazy" referrerpolicy="no-referrer" />`;
+
+      return `
+        <article class="card">
+          <div class="thumb">
+            <input class="check" type="checkbox" data-select="${escapeAttr(item.url)}" checked>
+            ${preview}
+          </div>
+          <div class="meta">
+            <div class="name" title="${escapeAttr(item.name)}">${escapeHtml(item.name)}</div>
+            <div class="details">
+              <span>${escapeHtml(item.type)} · ${escapeHtml((item.ext || '?').toUpperCase())}</span>
+              <span>${formatBytes(item.size)}</span>
+            </div>
+            <div class="url" title="${escapeAttr(item.url)}">${escapeHtml(item.url)}</div>
+            <div class="actions">
+              <button type="button" onclick="window.open('${escapeJs(item.url)}','_blank','noopener,noreferrer')">Open</button>
+              <button type="button" data-download-one="${escapeAttr(item.url)}">Download</button>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    function setupVideoPreview(video) {
+      if (video.dataset.ready) return;
+      video.dataset.ready = '1';
+
+      video.addEventListener('loadedmetadata', () => {
+        try {
+          video.currentTime = 0.001;
+          video.pause();
+        } catch {}
+      }, { once:true });
+
+      video.addEventListener('click', () => {
+        if (video.paused) video.play().catch(() => {});
+        else video.pause();
+      });
+    }
+
+    async function weighVisible({ quiet = false } = {}) {
+      const visible = filteredItems().slice(0, 60);
+
+      await Promise.allSettled(visible.map(async item => {
+        if (item.size != null) return;
+
+        try {
+          const res = await fetch(item.url, { method:'HEAD', mode:'cors' });
+          const len = res.headers.get('content-length');
+          if (len) item.size = Number(len);
+        } catch {}
+      }));
+
+      render();
+      if (!quiet) setStatus('Checked file sizes where the browser allowed it.', 'good');
+    }
+
+    async function downloadOne(url) {
+      const item = items.find(i => i.url === url);
+      if (!item) return;
+
+      try {
+        setStatus(`Downloading ${item.name}...`);
+        const blob = await fetchBlob(item.url);
+        downloadBlob(blob, safeFilename(item.name, item.ext));
+        setStatus(`Downloaded ${item.name}.`, 'good');
+      } catch (err) {
+        console.error(err);
+        setStatus('Download blocked by browser/CORS. Try Open, then save from the direct asset tab.', 'bad');
+      }
+    }
+
+    async function downloadVisible() {
+      const selectedUrls = [...document.querySelectorAll('[data-select]:checked')].map(el => el.dataset.select);
+      const list = filteredItems().filter(item => selectedUrls.includes(item.url));
+
+      if (!list.length) return;
+
+      downloadVisibleBtn.disabled = true;
+      downloadVisibleBtn.textContent = 'Zipping...';
+      setStatus(`Bundling ${list.length} file${list.length === 1 ? '' : 's'}...`);
+
+      const zip = new JSZip();
+      const failed = [];
+
+      for (const item of list) {
+        try {
+          const blob = await fetchBlob(item.url);
+          zip.file(safeFilename(item.name, item.ext), blob);
+        } catch {
+          failed.push(item.url);
+        }
+      }
+
+      if (failed.length) {
+        zip.file('_blocked-by-cors.txt', failed.join('\n'));
+      }
+
+      const blob = await zip.generateAsync({ type:'blob' });
+      downloadBlob(blob, 'asset-goblin-media.zip');
+
+      downloadVisibleBtn.disabled = false;
+      downloadVisibleBtn.textContent = 'Download visible';
+
+      setStatus(failed.length ? `ZIP created, but ${failed.length} file${failed.length === 1 ? '' : 's'} were blocked by CORS.` : 'ZIP downloaded.', failed.length ? 'bad' : 'good');
+    }
+
+    async function fetchBlob(url) {
+      const res = await fetch(url, { mode:'cors' });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return await res.blob();
+    }
+
+    function downloadBlob(blob, filename) {
+      const a = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function safeFilename(name, ext) {
+      let clean = (name || 'asset').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120);
+      if (!clean.includes('.') && ext) clean += `.${ext}`;
+      return clean;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value);
+    }
+
+    function escapeJs(value) {
+      return String(value).replaceAll('\\','\\\\').replaceAll("'","\\'").replaceAll('\n','');
+    }
+
+    scanBtn.addEventListener('click', scan);
+    urlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') scan();
+    });
+
+    [searchInput, typeFilter, extFilter, minKb, maxKb, sortSelect].forEach(el => {
+      el.addEventListener('input', render);
+      el.addEventListener('change', render);
+    });
+
+    downloadVisibleBtn.addEventListener('click', downloadVisible);
+  </script>
 </body>
 </html>
