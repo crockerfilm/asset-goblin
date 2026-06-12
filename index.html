@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Asset Goblin v0.1.5</title>
+  <title>Asset Goblin v0.1.7</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -289,7 +289,7 @@
         <h1>Asset Goblin</h1>
         <p class="sub">Paste a page URL. Asset Goblin sniffs out images and videos, then lets you download one, selected, visible, or all.</p>
       </div>
-      <div class="badge">goblin mode · v0.1.5</div>
+      <div class="badge">goblin mode · v0.1.7</div>
     </header>
 
     <section class="panel">
@@ -784,8 +784,7 @@
     }
 
     async function downloadVisible() {
-      const selectedUrls = [...document.querySelectorAll('[data-select]:checked')].map(el => el.dataset.select);
-      const list = filteredItems().filter(item => selectedUrls.includes(item.url));
+      const list = selectedVisibleItems();
 
       if (!list.length) return;
 
@@ -820,8 +819,7 @@
     }
 
     async function directDownloadVisible() {
-      const selectedUrls = [...document.querySelectorAll('[data-select]:checked')].map(el => el.dataset.select);
-      const list = filteredItems().filter(item => selectedUrls.includes(item.url));
+      const list = selectedVisibleItems();
 
       if (!list.length) return;
 
@@ -978,6 +976,6 @@
     downloadVisibleBtn.addEventListener('click', downloadVisible);
     directDownloadBtn.addEventListener('click', directDownloadVisible);
   </script>
-  <div id="versionPill" class="versionPill">Asset Goblin v0.1.5</div>
+  <div id="versionPill" class="versionPill">Asset Goblin v0.1.7</div>
 </body>
 </html>
